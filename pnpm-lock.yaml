@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: ^9.9.0
         version: 9.9.1
+      '@jest/types':
+        specifier: ^29.6.3
+        version: 29.6.3
       '@types/eslint':
         specifier: ^9.6.0
         version: 9.6.1
