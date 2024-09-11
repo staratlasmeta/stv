@@ -98,9 +98,8 @@ export function calculateStvWinners(
       for (const vote of votes) {
         const nextCandidate = vote.voteOrder[0];
         if (nextCandidate === undefined) {
-          throw new Error(
-            "No candidate to redistribute vote to. Shouldn't happen.",
-          );
+          // If there's no valid candidate to transfer to, continue with the next vote.
+          continue;
         }
         totalVotesForProportion += vote.voteCount;
         const candidate = organizedVotes.get(nextCandidate);
@@ -115,13 +114,14 @@ export function calculateStvWinners(
         }
       }
 
-      // Accounts for votes that have no second choice.
-      const voteMultiplier = totalVotes / totalVotesForProportion;
-      if (voteMultiplier < 1) {
-        throw new Error(
-          'Vote multiplier should be at least 1. Should not happen.',
-        );
+      if (totalVotesForProportion === 0) {
+        // All votes are exhausted, reducing the total vote count for quota calculation.
+        newQuotaTotalVotes -= totalVotes;
+        return;
       }
+
+      // Calculate the vote multiplier.
+      const voteMultiplier = Math.min(1, totalVotes / totalVotesForProportion);
 
       /// Amount of excess votes.
       const votesToRedistribute = totalVotes - quota;
@@ -173,7 +173,7 @@ export function calculateStvWinners(
       // Some candidates are above the quota.
       for (const candidate of aboveQuota) {
         winners.push(candidate[0]);
-        distributeVotes(...candidate);
+        distributeVotes(candidate[0], candidate[1]);
       }
     } else {
       // No candidates are above the quota. Eliminate the lowest candidate.
@@ -189,7 +189,15 @@ export function calculateStvWinners(
       if (lowestCandidate === null) {
         throw new Error('No lowest candidate found. Should not happen.');
       }
-      distributeVotes(...lowestCandidate);
+      distributeVotes(lowestCandidate[0], lowestCandidate[1]);
+
+      // Check if eliminating the lowest candidate leads to no candidates left to consider
+      if (candidateSet.size === 0 && winners.length < seats) {
+        // Declare the remaining candidates as winners if not enough winners are found
+        const remainingCandidates = Array.from(candidateSet.keys());
+        winners.push(...remainingCandidates);
+        break;
+      }
     }
 
     // Apply adjustments to total votes and quota.

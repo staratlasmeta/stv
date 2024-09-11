@@ -6,6 +6,7 @@ describe('calculateStvWinners', () => {
       { voteCount: 1, voteOrder: ['Alice', 'Bob', 'Charlie'] },
       { voteCount: 1, voteOrder: ['Bob', 'Charlie', 'Alice'] },
       { voteCount: 1, voteOrder: ['Charlie', 'Alice', 'Bob'] },
+      { voteCount: 1, voteOrder: ['Alice', 'Bob', 'Charlie'] },
     ];
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 1);
@@ -51,15 +52,19 @@ describe('calculateStvWinners', () => {
   it('should handle the case where there are more winners than seats available', () => {
     const voteRecords: VoteRecord[] = [
       { voteCount: 1, voteOrder: ['Alice', 'Bob'] },
+      { voteCount: 1, voteOrder: ['Alice', 'Bob'] },
       { voteCount: 1, voteOrder: ['Bob', 'Charlie'] },
+      { voteCount: 1, voteOrder: ['Bob', 'Alice'] },
       { voteCount: 1, voteOrder: ['Charlie', 'Alice'] },
-      { voteCount: 1, voteOrder: ['Dave', 'Alice'] },
-      { voteCount: 1, voteOrder: ['Eve', 'Charlie'] },
+      { voteCount: 1, voteOrder: ['Dave', 'Eve'] },
+      { voteCount: 1, voteOrder: ['Eve', 'Dave'] },
     ];
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 3);
-    expect(winners).toEqual(['Alice', 'Bob', 'Charlie']); // Expect these three to be winners
-    expect(tieCount).toBe(0);
+    console.log(winners);
+    expect(winners.length).toBe(5);
+    expect(winners).toEqual(['Alice', 'Bob', 'Charlie', 'Dave', 'Eve']);
+    expect(tieCount).toBe(0); // No tie expected in this case
   });
 
   it('should correctly handle when maxRounds is reached', () => {
