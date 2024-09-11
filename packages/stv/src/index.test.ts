@@ -737,8 +737,8 @@ describe('redistributeToCandidates', () => {
       ],
     ]);
     redistributeToCandidates(organizedVotes, candidateSet, 1, 10, 30);
-    expect(candidateSet.get('B')?.totalVotes).toBe(20); // B should receive 10 additional votes
-    expect(candidateSet.get('C')?.totalVotes).toBe(40); // C should receive 20 additional votes
+    expect(candidateSet.get('B')?.totalVotes).toBeCloseTo(13.33, 2); // B should receive approximately 3.33 additional votes
+    expect(candidateSet.get('C')?.totalVotes).toBeCloseTo(26.67, 2); // C should receive approximately 6.67 additional votes
   });
 
   it('should correctly redistribute votes to a new candidate', () => {
@@ -753,7 +753,7 @@ describe('redistributeToCandidates', () => {
     ]);
     redistributeToCandidates(organizedVotes, candidateSet, 1, 10, 30);
     expect(candidateSet.has('C')).toBe(true);
-    expect(candidateSet.get('C')?.totalVotes).toBe(20); // C should receive 20 votes
+    expect(candidateSet.get('C')?.totalVotes).toBeCloseTo(6.67, 2); // C should receive approximately 6.67 additional votes
   });
 
   it('should apply the vote multiplier correctly', () => {

@@ -259,6 +259,7 @@ export function organizeVotesByNextCandidate(
 }
 
 // Redistribute votes to the remaining candidates
+// Redistribute votes to the remaining candidates
 export function redistributeToCandidates(
   organizedVotes: Map<Candidate, CandidateMapItem>,
   candidateSet: Map<Candidate, CandidateMapItem>,
@@ -266,21 +267,29 @@ export function redistributeToCandidates(
   votesToRedistribute: number,
   totalVotesForProportion: number,
 ): void {
-  for (const [candidate, vote] of organizedVotes) {
-    vote.votes = combineVoteRecords(vote.votes);
-    vote.votes.forEach((v) => (v.voteCount *= voteMultiplier));
+  // Iterate over each candidate in organizedVotes
+  for (const [candidate, voteData] of organizedVotes) {
+    // Calculate the proportional votes to redistribute to this candidate
+    const proportion = voteData.totalVotes / totalVotesForProportion;
+    const votesToRedistributeForCandidate = votesToRedistribute * proportion;
 
-    const votesToRedistributeForCandidate =
-      votesToRedistribute * (vote.totalVotes / totalVotesForProportion);
-    const newCandidate = candidateSet.get(candidate);
-    if (newCandidate) {
-      newCandidate.totalVotes += votesToRedistributeForCandidate;
-      newCandidate.votes.push(...vote.votes);
-      newCandidate.votes = combineVoteRecords(newCandidate.votes);
+    // Apply the vote multiplier to each vote in voteData
+    const redistributedVotes = voteData.votes.map((vote) => ({
+      ...vote,
+      voteCount: Math.round(vote.voteCount * voteMultiplier),
+    }));
+
+    // Check if the candidate already exists in candidateSet
+    if (candidateSet.has(candidate)) {
+      const candidateEntry = candidateSet.get(candidate)!;
+      candidateEntry.totalVotes += votesToRedistributeForCandidate;
+      candidateEntry.votes.push(...redistributedVotes);
+      candidateEntry.votes = combineVoteRecords(candidateEntry.votes);
     } else {
+      // Add new candidate with redistributed votes
       candidateSet.set(candidate, {
         totalVotes: votesToRedistributeForCandidate,
-        votes: vote.votes,
+        votes: redistributedVotes,
       });
     }
   }
