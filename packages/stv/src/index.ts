@@ -72,17 +72,17 @@ export function processElection(
   const newQuotaTotalVotes = { value: totalVotes };
 
   while (winners.length < seats) {
-    console.log(
-      JSON.stringify(
-        {
-          round: rounds + 1,
-          quota,
-          candidateSet: Array.from(candidateSet.entries()),
-        },
-        null,
-        2,
-      ),
-    );
+    // console.log(
+    //   JSON.stringify(
+    //     {
+    //       round: rounds + 1,
+    //       quota,
+    //       candidateSet: Array.from(candidateSet.entries()),
+    //     },
+    //     null,
+    //     2,
+    //   ),
+    // );
     if (maxRounds !== null && rounds >= maxRounds) {
       throw new Error('Max rounds exceeded');
     }
@@ -94,10 +94,10 @@ export function processElection(
     const aboveQuota = getCandidatesAboveQuota(candidateSet, quota);
 
     if (aboveQuota.length > seats - winners.length) {
-      console.log(`Final above quota: ${JSON.stringify(aboveQuota, null, 2)}`);
+      // console.log(`Final above quota: ${JSON.stringify(aboveQuota, null, 2)}`);
       return selectWinnersFromAboveQuota(winners, aboveQuota, seats);
     } else if (aboveQuota.length > 0) {
-      console.log(`Above quota: ${JSON.stringify(aboveQuota, null, 2)}`);
+      // console.log(`Above quota: ${JSON.stringify(aboveQuota, null, 2)}`);
       for (const candidate of aboveQuota) {
         winners.push(candidate[0]);
         distributeVotes(
@@ -109,7 +109,7 @@ export function processElection(
         );
       }
     } else {
-      console.log('No candidates above quota');
+      // console.log('No candidates above quota');
       eliminateLowestCandidate(
         candidateSet,
         winners,
@@ -142,7 +142,7 @@ export function selectWinnersFromAboveQuota(
   seats: number,
 ): { winners: Candidate[]; tieCount: number } {
   if (aboveQuota.length === 0) {
-    console.log('No candidates above quota');
+    // console.log('No candidates above quota');
     return { winners, tieCount: 0 };
   }
 
@@ -157,7 +157,7 @@ export function selectWinnersFromAboveQuota(
   selectedWinners += 1;
 
   for (const [candidate, { totalVotes }] of aboveQuota) {
-    console.log(`Evaluating ${candidate} with ${totalVotes} votes`);
+    // console.log(`Evaluating ${candidate} with ${totalVotes} votes`);
     if (totalVotes === lastVotes) {
       tieCount += 1;
       winners.push(candidate);
@@ -185,9 +185,9 @@ export function distributeVotes(
 ): void {
   removeCandidateFromAllVotes(candidate, candidateSet);
 
-  console.log(
-    `Distributing ${candidateData.totalVotes} votes for ${candidate}`,
-  );
+  // console.log(
+  //   `Distributing ${candidateData.totalVotes} votes for ${candidate}`,
+  // );
 
   if (candidateData.votes.length === 0) {
     newQuotaTotalVotes.value -= candidateData.totalVotes;
@@ -238,9 +238,9 @@ export function redistributeExcessVotes(
   }
 
   if (totalVotesForProportion === 0) {
-    console.log(
-      `No votes to redistribute, reducing quota by ${candidateData.totalVotes} votes`,
-    );
+    // console.log(
+    //   `No votes to redistribute, reducing quota by ${candidateData.totalVotes} votes`,
+    // );
     newQuotaTotalVotes.value -= candidateData.totalVotes;
     return;
   }
@@ -248,7 +248,7 @@ export function redistributeExcessVotes(
   // Calculate the vote multiplier based on the excess votes
   const votesToRedistribute = candidateData.totalVotes - quota;
   const voteMultiplier = votesToRedistribute / totalVotesForProportion;
-  console.log(`Redistributing ${votesToRedistribute} votes`);
+  // console.log(`Redistributing ${votesToRedistribute} votes`);
 
   // Redistribute the votes proportionally
   redistributeToCandidates(
@@ -299,9 +299,9 @@ export function redistributeToCandidates(
 
     const votesToRedistributeForCandidate =
       votesToRedistribute * (vote.totalVotes / totalVotesForProportion);
-    console.log(
-      `Redistributing ${votesToRedistributeForCandidate} votes to ${candidate}`,
-    );
+    // console.log(
+    //   `Redistributing ${votesToRedistributeForCandidate} votes to ${candidate}`,
+    // );
     const newCandidate = candidateSet.get(candidate);
     if (newCandidate) {
       newCandidate.totalVotes += votesToRedistributeForCandidate;
@@ -337,9 +337,9 @@ export function eliminateLowestCandidate(
   if (lowestCandidate === null) {
     throw new Error('No lowest candidate found. Should not happen.');
   }
-  console.log(
-    `Eliminating ${lowestCandidate[0]} with ${lowestCandidate[1].totalVotes} votes.\nStats: ${JSON.stringify(lowestCandidate, null, 2)}`,
-  );
+  // console.log(
+  //   `Eliminating ${lowestCandidate[0]} with ${lowestCandidate[1].totalVotes} votes.\nStats: ${JSON.stringify(lowestCandidate, null, 2)}`,
+  // );
 
   // Remove the lowest candidate and redistribute their votes
   distributeVotes(
