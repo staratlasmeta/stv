@@ -4,32 +4,38 @@ export type VoteRecord = {
   voteOrder: Candidate[];
 };
 
-type CandidateMapItem = {
+export type CandidateMapItem = {
   totalVotes: number;
-  votes: { voteCount: number; voteOrder: Candidate[] }[];
+  votes: VoteRecord[];
 };
 
-/**
- * @param voteRecords - The vote records to calculate winners from.
- * @param seats - The number of seats to fill.
- * @param maxRounds - The maximum number of rounds to run before giving up. If null, will run indefinitely.
- * @return winners - The candidates who won.
- * @return tieCount - The number of winners at the end of the list who tied. Will be non-zero only if there are too many winners.
- */
 export function calculateStvWinners(
   voteRecords: VoteRecord[],
   seats: number,
   maxRounds: number | null = 1000,
 ): { winners: Candidate[]; tieCount: number } {
   voteRecords = combineVoteRecords(voteRecords);
-  let totalVotes = voteRecords.reduce(
-    (acc, { voteCount }) => acc + voteCount,
-    0,
-  );
-  // This is the Droop quota: https://en.wikipedia.org/wiki/Droop_quota
-  let quota = totalVotes / (seats + 1);
+  const totalVotes = calculateTotalVotes(voteRecords);
+  const quota = calculateQuota(totalVotes, seats);
+  const candidateSet = initializeCandidateSet(voteRecords);
 
-  const winners: Candidate[] = [];
+  return processElection(candidateSet, seats, quota, totalVotes, maxRounds);
+}
+
+// Calculate the total votes from vote records
+export function calculateTotalVotes(voteRecords: VoteRecord[]): number {
+  return voteRecords.reduce((acc, { voteCount }) => acc + voteCount, 0);
+}
+
+// Calculate the Droop quota
+export function calculateQuota(totalVotes: number, seats: number): number {
+  return totalVotes / (seats + 1);
+}
+
+// Initialize the candidate set with votes
+export function initializeCandidateSet(
+  voteRecords: VoteRecord[],
+): Map<Candidate, CandidateMapItem> {
   const candidateSet = new Map<Candidate, CandidateMapItem>();
 
   for (const record of voteRecords) {
@@ -45,7 +51,22 @@ export function calculateStvWinners(
     }
   }
 
+  return candidateSet;
+}
+
+// Main election processing logic
+export function processElection(
+  candidateSet: Map<Candidate, CandidateMapItem>,
+  seats: number,
+  initialQuota: number,
+  totalVotes: number,
+  maxRounds: number | null,
+): { winners: Candidate[]; tieCount: number } {
+  const winners: Candidate[] = [];
   let rounds = 0;
+  let quota = initialQuota;
+  let newQuotaTotalVotes = totalVotes;
+
   while (winners.length < seats) {
     if (maxRounds !== null && rounds > maxRounds) {
       throw new Error('Max rounds exceeded');
@@ -55,162 +76,256 @@ export function calculateStvWinners(
       throw new Error('No candidates left. Should not happen.');
     }
 
-    const aboveQuota = [];
-    for (const candidate of candidateSet) {
-      if (candidate[1].totalVotes >= quota) {
-        aboveQuota.push(candidate);
-      }
-    }
-    aboveQuota.sort((a, b) => b[1].totalVotes - a[1].totalVotes);
+    const aboveQuota = getCandidatesAboveQuota(candidateSet, quota);
 
-    const maxNewWinners = seats - winners.length;
-
-    let newQuotaTotalVotes = totalVotes;
-
-    const distributeVotes = (
-      candidate: Candidate,
-      { totalVotes, votes }: CandidateMapItem,
-    ) => {
-      // Remove the candidate from all votes.
-      for (const cVotes of candidateSet.values()) {
-        cVotes.votes = combineVoteRecords(
-          cVotes.votes.filter((vote) => {
-            vote.voteOrder = vote.voteOrder.filter((c) => c !== candidate);
-            // Vote no longer matters if no candidates left.
-            return vote.voteOrder.length > 0;
-          }),
-        );
-      }
-      candidateSet.delete(candidate);
-
-      if (votes.length === 0) {
-        // Votes have nowhere to go. We reduce the quota.
-        newQuotaTotalVotes -= totalVotes;
-        return;
-      }
-
-      // Organize votes by the next candidate in line.
-      let totalVotesForProportion = 0;
-      const organizedVotes = new Map<
-        Candidate,
-        { totalVotes: number; votes: VoteRecord[] }
-      >();
-      for (const vote of votes) {
-        const nextCandidate = vote.voteOrder[0];
-        if (nextCandidate === undefined) {
-          // If there's no valid candidate to transfer to, continue with the next vote.
-          continue;
-        }
-        totalVotesForProportion += vote.voteCount;
-        const candidate = organizedVotes.get(nextCandidate);
-        if (candidate) {
-          candidate.totalVotes += vote.voteCount;
-          candidate.votes.push(vote);
-        } else {
-          organizedVotes.set(nextCandidate, {
-            totalVotes: vote.voteCount,
-            votes: [vote],
-          });
-        }
-      }
-
-      if (totalVotesForProportion === 0) {
-        // All votes are exhausted, reducing the total vote count for quota calculation.
-        newQuotaTotalVotes -= totalVotes;
-        return;
-      }
-
-      // Calculate the vote multiplier.
-      const voteMultiplier = Math.min(1, totalVotes / totalVotesForProportion);
-
-      /// Amount of excess votes.
-      const votesToRedistribute = totalVotes - quota;
-
-      // Redistribute votes.
-      for (const [candidate, vote] of organizedVotes) {
-        vote.votes = combineVoteRecords(vote.votes);
-        vote.votes.forEach((v) => (v.voteCount *= voteMultiplier));
-
-        const votesToRedistributeForCandidate =
-          votesToRedistribute * (vote.totalVotes / totalVotesForProportion);
-        const newCandidate = candidateSet.get(candidate);
-        if (newCandidate) {
-          newCandidate.totalVotes += votesToRedistributeForCandidate;
-          newCandidate.votes.push(...vote.votes);
-          newCandidate.votes = combineVoteRecords(newCandidate.votes);
-        } else {
-          candidateSet.set(candidate, {
-            totalVotes: votesToRedistributeForCandidate,
-            votes: vote.votes,
-          });
-        }
-      }
-    };
-
-    if (aboveQuota.length > maxNewWinners) {
-      // If we have more candidates above the quota than we have seats left, we pick the highest vote winners.
-      // Grab the top candidate(s) and check for ties.
-      let selectedWinners = 1;
-      let tieCount = 1;
-      const lastVotes = aboveQuota[0][1].totalVotes;
-      winners.push(aboveQuota[0][0]);
-      aboveQuota.shift();
-      for (const [candidate, { totalVotes }] of aboveQuota) {
-        if (totalVotes === lastVotes) {
-          tieCount += 1;
-          winners.push(candidate);
-          selectedWinners += 1;
-        } else if (selectedWinners >= maxNewWinners) {
-          break;
-        } else {
-          tieCount = 1;
-          winners.push(candidate);
-          selectedWinners += 1;
-        }
-      }
-      return { winners, tieCount: tieCount <= 1 ? 0 : tieCount };
+    if (aboveQuota.length > seats - winners.length) {
+      return selectWinnersFromAboveQuota(winners, aboveQuota, seats);
     } else if (aboveQuota.length > 0) {
-      // Some candidates are above the quota.
       for (const candidate of aboveQuota) {
         winners.push(candidate[0]);
-        distributeVotes(candidate[0], candidate[1]);
+        distributeVotes(
+          candidate[0],
+          candidate[1],
+          candidateSet,
+          quota,
+          newQuotaTotalVotes,
+        );
       }
     } else {
-      // No candidates are above the quota. Eliminate the lowest candidate.
-      let lowestVotes = Number.MAX_VALUE;
-      let lowestCandidate: [Candidate, CandidateMapItem] | null = null;
-      for (const candidate of candidateSet) {
-        if (candidate[1].totalVotes < lowestVotes) {
-          lowestVotes = candidate[1].totalVotes;
-          lowestCandidate = candidate;
-        }
-      }
-
-      if (lowestCandidate === null) {
-        throw new Error('No lowest candidate found. Should not happen.');
-      }
-      distributeVotes(lowestCandidate[0], lowestCandidate[1]);
-
-      // Check if eliminating the lowest candidate leads to no candidates left to consider
-      if (candidateSet.size === 0 && winners.length < seats) {
-        // Declare the remaining candidates as winners if not enough winners are found
-        const remainingCandidates = Array.from(candidateSet.keys());
-        winners.push(...remainingCandidates);
-        break;
-      }
+      eliminateLowestCandidate(
+        candidateSet,
+        winners,
+        seats,
+        quota,
+        newQuotaTotalVotes,
+      );
     }
 
-    // Apply adjustments to total votes and quota.
     totalVotes = newQuotaTotalVotes;
     quota = totalVotes / (seats + 1);
-
     rounds += 1;
   }
 
   return { winners, tieCount: 0 };
 }
 
-function combineVoteRecords(voteRecords: VoteRecord[]): VoteRecord[] {
+// Get candidates who are above the quota
+export function getCandidatesAboveQuota(
+  candidateSet: Map<Candidate, CandidateMapItem>,
+  quota: number,
+): [Candidate, CandidateMapItem][] {
+  return Array.from(candidateSet.entries())
+    .filter(([, candidateItem]) => candidateItem.totalVotes >= quota)
+    .sort((a, b) => b[1].totalVotes - a[1].totalVotes);
+}
+
+// Select winners from the candidates who are above the quota
+export function selectWinnersFromAboveQuota(
+  winners: Candidate[],
+  aboveQuota: [Candidate, CandidateMapItem][],
+  seats: number,
+): { winners: Candidate[]; tieCount: number } {
+  if (aboveQuota.length === 0) {
+    return { winners, tieCount: 0 };
+  }
+
+  let selectedWinners = 0;
+  let tieCount = 0;
+  const firstCandidate = aboveQuota.shift();
+  const lastVotes = firstCandidate?.[1].totalVotes;
+
+  winners.push(firstCandidate[0]);
+  selectedWinners += 1;
+
+  for (const [candidate, { totalVotes }] of aboveQuota) {
+    if (selectedWinners >= seats) {
+      break;
+    }
+    if (totalVotes === lastVotes) {
+      tieCount += 1;
+      winners.push(candidate);
+      selectedWinners += 1;
+    } else {
+      tieCount = 0;
+      winners.push(candidate);
+      selectedWinners += 1;
+      break;
+    }
+  }
+
+  return { winners, tieCount: tieCount > 0 ? tieCount + 1 : 0 };
+}
+
+// Distribute votes from a candidate
+export function distributeVotes(
+  candidate: Candidate,
+  candidateData: CandidateMapItem,
+  candidateSet: Map<Candidate, CandidateMapItem>,
+  quota: number,
+  newQuotaTotalVotes: number,
+): void {
+  removeCandidateFromAllVotes(candidate, candidateSet);
+
+  if (candidateData.votes.length === 0) {
+    newQuotaTotalVotes -= candidateData.totalVotes;
+    return;
+  }
+
+  // Redistribute excess votes to remaining candidates
+  redistributeExcessVotes(
+    candidateData,
+    candidateSet,
+    quota,
+    newQuotaTotalVotes,
+  );
+}
+
+// Remove the eliminated candidate from all votes
+export function removeCandidateFromAllVotes(
+  candidate: Candidate,
+  candidateSet: Map<Candidate, CandidateMapItem>,
+): void {
+  for (const cVotes of candidateSet.values()) {
+    cVotes.votes = combineVoteRecords(
+      cVotes.votes.filter((vote) => {
+        vote.voteOrder = vote.voteOrder.filter((c) => c !== candidate);
+        return vote.voteOrder.length > 0;
+      }),
+    );
+  }
+  candidateSet.delete(candidate);
+}
+
+// Redistribute the excess votes from a candidate
+export function redistributeExcessVotes(
+  candidateData: CandidateMapItem,
+  candidateSet: Map<Candidate, CandidateMapItem>,
+  quota: number,
+  newQuotaTotalVotes: number,
+): void {
+  // Calculate total votes for proportion by summing the vote counts
+  let totalVotesForProportion = 0;
+
+  // Organize votes by the next candidate in line
+  const organizedVotes = organizeVotesByNextCandidate(candidateData.votes);
+
+  // Calculate totalVotesForProportion
+  for (const { totalVotes } of organizedVotes.values()) {
+    totalVotesForProportion += totalVotes;
+  }
+
+  if (totalVotesForProportion === 0) {
+    newQuotaTotalVotes -= candidateData.totalVotes;
+    return;
+  }
+
+  // Calculate the vote multiplier based on the excess votes
+  const votesToRedistribute = candidateData.totalVotes - quota;
+  const voteMultiplier = votesToRedistribute / totalVotesForProportion;
+
+  // Redistribute the votes proportionally
+  redistributeToCandidates(
+    organizedVotes,
+    candidateSet,
+    voteMultiplier,
+    votesToRedistribute,
+    totalVotesForProportion,
+  );
+}
+
+// Organize votes by the next candidate in the preference list
+export function organizeVotesByNextCandidate(
+  votes: VoteRecord[],
+): Map<Candidate, CandidateMapItem> {
+  const organizedVotes = new Map<Candidate, CandidateMapItem>();
+
+  for (const vote of votes) {
+    const nextCandidate = vote.voteOrder[0];
+    if (nextCandidate === undefined) continue;
+
+    const candidate = organizedVotes.get(nextCandidate);
+    if (candidate) {
+      candidate.totalVotes += vote.voteCount;
+      candidate.votes.push(vote);
+    } else {
+      organizedVotes.set(nextCandidate, {
+        totalVotes: vote.voteCount,
+        votes: [vote],
+      });
+    }
+  }
+
+  return organizedVotes;
+}
+
+// Redistribute votes to the remaining candidates
+export function redistributeToCandidates(
+  organizedVotes: Map<Candidate, CandidateMapItem>,
+  candidateSet: Map<Candidate, CandidateMapItem>,
+  voteMultiplier: number,
+  votesToRedistribute: number,
+  totalVotesForProportion: number,
+): void {
+  for (const [candidate, vote] of organizedVotes) {
+    vote.votes = combineVoteRecords(vote.votes);
+    vote.votes.forEach((v) => (v.voteCount *= voteMultiplier));
+
+    const votesToRedistributeForCandidate =
+      votesToRedistribute * (vote.totalVotes / totalVotesForProportion);
+    const newCandidate = candidateSet.get(candidate);
+    if (newCandidate) {
+      newCandidate.totalVotes += votesToRedistributeForCandidate;
+      newCandidate.votes.push(...vote.votes);
+      newCandidate.votes = combineVoteRecords(newCandidate.votes);
+    } else {
+      candidateSet.set(candidate, {
+        totalVotes: votesToRedistributeForCandidate,
+        votes: vote.votes,
+      });
+    }
+  }
+}
+
+// Eliminate the candidate with the lowest votes
+export function eliminateLowestCandidate(
+  candidateSet: Map<Candidate, CandidateMapItem>,
+  winners: Candidate[],
+  seats: number,
+  quota: number,
+  totalVotes: number,
+): void {
+  let lowestVotes = Number.MAX_VALUE;
+  let lowestCandidate: [Candidate, CandidateMapItem] | null = null;
+
+  // Identify the candidate with the lowest votes
+  for (const candidate of candidateSet) {
+    if (candidate[1].totalVotes < lowestVotes) {
+      lowestVotes = candidate[1].totalVotes;
+      lowestCandidate = candidate;
+    }
+  }
+
+  if (lowestCandidate === null) {
+    throw new Error('No lowest candidate found. Should not happen.');
+  }
+
+  // Remove the lowest candidate and redistribute their votes
+  distributeVotes(
+    lowestCandidate[0],
+    lowestCandidate[1],
+    candidateSet,
+    quota,
+    totalVotes,
+  );
+
+  // If all candidates are eliminated and no more seats to fill, add remaining candidates to winners
+  if (candidateSet.size === 0 && winners.length < seats) {
+    winners.push(lowestCandidate[0]);
+  }
+}
+
+// Combine vote records with identical vote orders
+export function combineVoteRecords(voteRecords: VoteRecord[]): VoteRecord[] {
   const out: VoteRecord[] = [];
   for (const record of voteRecords) {
     const existing = out.find((r) => arrayEqual(r.voteOrder, record.voteOrder));
@@ -223,7 +338,8 @@ function combineVoteRecords(voteRecords: VoteRecord[]): VoteRecord[] {
   return out;
 }
 
-function arrayEqual<T>(a: T[], b: T[]): boolean {
+// Utility function to check if two arrays are equal
+export function arrayEqual<T>(a: T[], b: T[]): boolean {
   if (a.length !== b.length) {
     return false;
   }
