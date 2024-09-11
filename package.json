@@ -1,4 +1,7 @@
 {
+  "name": "@staratlas/stv",
+  "version": "0.0.0",
+  "description": "STV vote code for the Star Atlas DAO",
   "scripts": {
     "build": "pnpm run -r build",
     "watch": "pnpm build && pnpm run -r --parallel watch",

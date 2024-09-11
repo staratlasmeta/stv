@@ -187,7 +187,7 @@ describe('calculateStvWinners', () => {
   //       { voteCount: 1, voteOrder: ['Dave', 'Eve'] },
   //       { voteCount: 1, voteOrder: ['Eve', 'Dave'] },
   //     ];
-
+  //
   //     const { winners, tieCount } = calculateStvWinners(voteRecords, 3);
   //     console.log(winners);
   //     expect(winners.length).toBe(5);
