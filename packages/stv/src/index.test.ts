@@ -429,6 +429,36 @@ describe('selectWinnersFromAboveQuota', () => {
     expect(result.tieCount).toBe(2);
   });
 
+  it('should select more winners than there are seats if last few winners are tied', () => {
+    const winners: Candidate[] = [];
+    const aboveQuota: [Candidate, CandidateMapItem][] = [
+      ['A', { totalVotes: 25, votes: [] }],
+      ['B', { totalVotes: 25, votes: [] }],
+      ['C', { totalVotes: 20, votes: [] }],
+    ];
+    const result = selectWinnersFromAboveQuota(winners, aboveQuota, 1);
+    expect(result.winners).toHaveLength(2);
+    expect(result.winners).toContain('A');
+    expect(result.winners).toContain('B');
+    expect(result.tieCount).toBe(2);
+  });
+
+  it('should handle tripe tie cases', () => {
+    const winners: Candidate[] = [];
+    const aboveQuota: [Candidate, CandidateMapItem][] = [
+      ['A', { totalVotes: 25, votes: [] }],
+      ['B', { totalVotes: 25, votes: [] }],
+      ['C', { totalVotes: 25, votes: [] }],
+      ['D', { totalVotes: 20, votes: [] }],
+    ];
+    const result = selectWinnersFromAboveQuota(winners, aboveQuota, 2);
+    expect(result.winners).toHaveLength(3);
+    expect(result.winners).toContain('A');
+    expect(result.winners).toContain('B');
+    expect(result.winners).toContain('C');
+    expect(result.tieCount).toBe(3);
+  });
+
   it('should stop selecting when the number of seats is filled', () => {
     const winners: Candidate[] = [];
     const aboveQuota: [Candidate, CandidateMapItem][] = [
@@ -441,6 +471,39 @@ describe('selectWinnersFromAboveQuota', () => {
     expect(result.winners).toContain('A');
     expect(result.winners).toContain('B');
     expect(result.winners).not.toContain('C');
+    expect(result.tieCount).toBe(0);
+  });
+
+  it('should take previous winners into account when filling seats', () => {
+    const winners: Candidate[] = ['A'];
+    const aboveQuota: [Candidate, CandidateMapItem][] = [
+      ['B', { totalVotes: 40, votes: [] }],
+      ['C', { totalVotes: 30, votes: [] }],
+      ['D', { totalVotes: 25, votes: [] }],
+    ];
+    const result = selectWinnersFromAboveQuota(winners, aboveQuota, 2);
+    expect(result.winners).toHaveLength(2);
+    expect(result.winners).toContain('A');
+    expect(result.winners).toContain('B');
+    expect(result.winners).not.toContain('C');
+    expect(result.winners).not.toContain('D');
+    expect(result.tieCount).toBe(0);
+  });
+
+  it('should continue selecting when seats remain available', () => {
+    const winners: Candidate[] = [];
+    const aboveQuota: [Candidate, CandidateMapItem][] = [
+      ['A', { totalVotes: 40, votes: [] }],
+      ['B', { totalVotes: 30, votes: [] }],
+      ['C', { totalVotes: 25, votes: [] }],
+      ['D', { totalVotes: 15, votes: [] }],
+    ];
+    const result = selectWinnersFromAboveQuota(winners, aboveQuota, 3);
+    expect(result.winners).toHaveLength(3);
+    expect(result.winners).toContain('A');
+    expect(result.winners).toContain('B');
+    expect(result.winners).toContain('C');
+    expect(result.winners).not.toContain('D');
     expect(result.tieCount).toBe(0);
   });
 
@@ -476,6 +539,23 @@ describe('selectWinnersFromAboveQuota', () => {
     expect(result.winners).toContain('B');
     expect(result.winners).toContain('C');
     expect(result.tieCount).toBe(0); // Reset because C has fewer votes
+  });
+
+  it('should correctly handle ties further down the candidate list', () => {
+    const winners: Candidate[] = [];
+    const aboveQuota: [Candidate, CandidateMapItem][] = [
+      ['A', { totalVotes: 35, votes: [] }],
+      ['B', { totalVotes: 30, votes: [] }],
+      ['C', { totalVotes: 25, votes: [] }],
+      ['D', { totalVotes: 25, votes: [] }],
+    ];
+    const result = selectWinnersFromAboveQuota(winners, aboveQuota, 3);
+    expect(result.winners).toHaveLength(4);
+    expect(result.winners).toContain('A');
+    expect(result.winners).toContain('B');
+    expect(result.winners).toContain('C');
+    expect(result.winners).toContain('D');
+    expect(result.tieCount).toBe(2);
   });
 });
 
