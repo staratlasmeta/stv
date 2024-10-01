@@ -146,29 +146,25 @@ export function selectWinnersFromAboveQuota(
     return { winners, tieCount: 0 };
   }
 
-  let selectedWinners = 0;
   let tieCount = 0;
   // Length checked above
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const firstCandidate = aboveQuota.shift()!;
-  const lastVotes = firstCandidate?.[1].totalVotes;
+  let lastVotes = firstCandidate?.[1].totalVotes;
 
   winners.push(firstCandidate[0]);
-  selectedWinners += 1;
 
   for (const [candidate, { totalVotes }] of aboveQuota) {
     // console.log(`Evaluating ${candidate} with ${totalVotes} votes`);
     if (totalVotes === lastVotes) {
       tieCount += 1;
       winners.push(candidate);
-      selectedWinners += 1;
-    } else if (selectedWinners >= seats) {
+    } else if (winners.length >= seats) {
       break;
     } else {
       tieCount = 0;
       winners.push(candidate);
-      selectedWinners = 1;
-      break;
+      lastVotes = totalVotes;
     }
   }
 
