@@ -236,28 +236,26 @@ export function redistributeExcessVotes(
   for (const { totalVotes } of organizedVotes.values()) {
     totalVotesForProportion += totalVotes;
   }
+  const unassignedVotes = candidateData.totalVotes - totalVotesForProportion;
 
-  if (totalVotesForProportion === 0) {
+  if (unassignedVotes > 0) {
     // console.log(
-    //   `No votes to redistribute, reducing quota by ${candidateData.totalVotes} votes`,
+    //   `Reducing quota by ${candidateData.totalVotes - totalVotesForProportion} votes to account for missing backup candidates`,
     // );
-    newQuotaTotalVotes.value -= candidateData.totalVotes;
-    return;
+    newQuotaTotalVotes.value -= unassignedVotes;
+  }
+
+  if (candidateData.totalVotes === quota || totalVotesForProportion === 0) {
+    return; // No excess votes to redistribute, or no backup votes assigned
   }
 
   // Calculate the vote multiplier based on the excess votes
-  const votesToRedistribute = candidateData.totalVotes - quota;
-  const voteMultiplier = votesToRedistribute / totalVotesForProportion;
-  // console.log(`Redistributing ${votesToRedistribute} votes`);
+  const excessVotes = candidateData.totalVotes - quota;
+  const voteMultiplier = excessVotes / candidateData.totalVotes;
+  // console.log(`Redistributing ${excessVotes} excess votes`);
 
   // Redistribute the votes proportionally
-  redistributeToCandidates(
-    organizedVotes,
-    candidateSet,
-    voteMultiplier,
-    votesToRedistribute,
-    totalVotesForProportion,
-  );
+  redistributeToCandidates(organizedVotes, candidateSet, voteMultiplier);
 }
 
 // Organize votes by the next candidate in the preference list
@@ -290,15 +288,12 @@ export function redistributeToCandidates(
   organizedVotes: Map<Candidate, CandidateMapItem>,
   candidateSet: Map<Candidate, CandidateMapItem>,
   voteMultiplier: number,
-  votesToRedistribute: number,
-  totalVotesForProportion: number,
 ): void {
   for (const [candidate, vote] of organizedVotes) {
     vote.votes = combineVoteRecords(vote.votes);
     vote.votes.forEach((v) => (v.voteCount *= voteMultiplier));
 
-    const votesToRedistributeForCandidate =
-      votesToRedistribute * (vote.totalVotes / totalVotesForProportion);
+    const votesToRedistributeForCandidate = vote.totalVotes * voteMultiplier;
     // console.log(
     //   `Redistributing ${votesToRedistributeForCandidate} votes to ${candidate}`,
     // );

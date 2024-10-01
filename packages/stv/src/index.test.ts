@@ -41,7 +41,7 @@ describe('calculateStvWinners', () => {
     ];
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 3);
-    expect(winners).toEqual(expect.arrayContaining(['Eve', 'Alice', 'Dave'])); // Eve, Alice, Dave should win
+    expect(winners).toEqual(expect.arrayContaining(['Eve', 'Alice', 'Bob'])); // Eve, Alice, Bob should win
     expect(tieCount).toBe(0); // No tie expected
   });
 
@@ -167,13 +167,13 @@ describe('calculateStvWinners', () => {
 
   it('should correctly eliminate the candidate with the fewest votes', () => {
     const voteRecords: VoteRecord[] = [
-      { voteCount: 2, voteOrder: ['Alice', 'Bob'] },
+      { voteCount: 1.5, voteOrder: ['Alice', 'Bob'] },
       { voteCount: 1, voteOrder: ['Charlie', 'Bob'] },
       { voteCount: 1, voteOrder: ['Bob', 'Charlie'] },
     ];
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 1);
-    expect(winners).toEqual(['Alice']); // Alice should win after Charlie is eliminated
+    expect(winners).toEqual(['Bob']); // Bob should win after Charlie is eliminated
     expect(tieCount).toBe(0);
   });
 
@@ -212,13 +212,48 @@ describe('calculateStvWinners', () => {
 
   it('should correctly redistribute votes when a candidate is eliminated', () => {
     const voteRecords: VoteRecord[] = [
-      { voteCount: 2, voteOrder: ['Alice', 'Charlie'] },
-      { voteCount: 1, voteOrder: ['Bob', 'Alice'] },
+      { voteCount: 1.2, voteOrder: ['Alice', 'Charlie'] },
+      { voteCount: 1.1, voteOrder: ['Bob', 'Charlie'] },
       { voteCount: 1, voteOrder: ['Charlie', 'Bob'] },
+      { voteCount: 0.9, voteOrder: ['Dave', 'Bob', 'Alice'] },
     ];
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 2);
-    expect(winners).toEqual(['Alice', 'Charlie']); // Alice wins first, followed by Charlie
+    expect(winners).toEqual(['Bob', 'Alice']); // Bob wins first, followed by Alice
+    expect(tieCount).toBe(0);
+  });
+
+  it('should correctly handle a scenario where a winner has no backup candidates to assign excess votes to', () => {
+    // Quota values over time: 90, 30, 16 2/3
+    const voteRecords: VoteRecord[] = [
+      { voteCount: 170, voteOrder: ['Alice'] },
+      { voteCount: 10, voteOrder: ['Alice'] },
+      { voteCount: 40, voteOrder: ['Bob'] },
+      { voteCount: 25, voteOrder: ['Charlie'] },
+      { voteCount: 10, voteOrder: ['Dave', 'Charlie'] },
+      { voteCount: 10, voteOrder: ['Eve', 'Charlie'] },
+      { voteCount: 5, voteOrder: ['Frank', 'Charlie'] },
+    ];
+
+    const { winners, tieCount } = calculateStvWinners(voteRecords, 2);
+    expect(winners).toEqual(['Alice', 'Bob']); // Alice wins first, followed by Bob
+    expect(tieCount).toBe(0);
+  });
+
+  it('should correctly handle a scenario where a winner has a backup candidate defined for only a small portion of excess votes', () => {
+    // Quota values over time: 90, 33 1/3, 20
+    const voteRecords: VoteRecord[] = [
+      { voteCount: 170, voteOrder: ['Alice'] },
+      { voteCount: 10, voteOrder: ['Alice', 'Eve'] },
+      { voteCount: 40, voteOrder: ['Bob'] },
+      { voteCount: 25, voteOrder: ['Charlie'] },
+      { voteCount: 10, voteOrder: ['Dave', 'Charlie'] },
+      { voteCount: 10, voteOrder: ['Eve', 'Charlie'] },
+      { voteCount: 5, voteOrder: ['Frank', 'Charlie'] },
+    ];
+
+    const { winners, tieCount } = calculateStvWinners(voteRecords, 2);
+    expect(winners).toEqual(['Alice', 'Bob']); // Alice wins first, followed by Bob
     expect(tieCount).toBe(0);
   });
 });
@@ -749,7 +784,7 @@ describe('redistributeToCandidates', () => {
         { totalVotes: 20, votes: [{ voteCount: 20, voteOrder: ['C', 'A'] }] },
       ],
     ]);
-    redistributeToCandidates(organizedVotes, candidateSet, 1, 10, 30);
+    redistributeToCandidates(organizedVotes, candidateSet, 1 / 3);
     expect(candidateSet.get('B')?.totalVotes).toBeCloseTo(13.33, 2); // B should receive approximately 3.33 additional votes
     expect(candidateSet.get('C')?.totalVotes).toBeCloseTo(26.67, 2); // C should receive approximately 6.67 additional votes
   });
@@ -764,7 +799,7 @@ describe('redistributeToCandidates', () => {
         { totalVotes: 20, votes: [{ voteCount: 20, voteOrder: ['C', 'A'] }] },
       ],
     ]);
-    redistributeToCandidates(organizedVotes, candidateSet, 1, 10, 30);
+    redistributeToCandidates(organizedVotes, candidateSet, 1 / 3);
     expect(candidateSet.has('C')).toBe(true);
     expect(candidateSet.get('C')?.totalVotes).toBeCloseTo(6.67, 2); // C should receive approximately 6.67 additional votes
   });
@@ -779,7 +814,7 @@ describe('redistributeToCandidates', () => {
         { totalVotes: 10, votes: [{ voteCount: 10, voteOrder: ['B', 'C'] }] },
       ],
     ]);
-    redistributeToCandidates(organizedVotes, candidateSet, 0.5, 10, 20);
+    redistributeToCandidates(organizedVotes, candidateSet, 0.5);
     expect(candidateSet.get('B')?.totalVotes).toBe(15); // B should receive 5 additional votes
   });
 
@@ -788,7 +823,7 @@ describe('redistributeToCandidates', () => {
       ['B', { totalVotes: 10, votes: [] }],
     ]);
     const organizedVotes = new Map<Candidate, CandidateMapItem>();
-    redistributeToCandidates(organizedVotes, candidateSet, 1, 10, 20);
+    redistributeToCandidates(organizedVotes, candidateSet, 0.5);
     expect(candidateSet.get('B')?.totalVotes).toBe(10); // No votes redistributed, B should remain the same
   });
 });
