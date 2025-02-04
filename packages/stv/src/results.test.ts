@@ -1,15 +1,18 @@
-import votes from '../../../results/1b792551-83e1-4998-99a4-6637caa69df8.json';
+import votesTerm1A from '../../../results/1b792551-83e1-4998-99a4-6637caa69df8.json';
+import votesTerm1B from '../../../results/91652743-f916-4566-99af-421a557f7c3d.json';
 import { calculateStvWinners, Candidate, VoteRecord } from './index';
 
-describe('calculateElectionWinners', () => {
+describe('calculate 1st Council election winners', () => {
   it('should correctly calculate winners from the first election round', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const voteRecords: VoteRecord[] = Object.values(votes).map((vote: any) => {
-      return {
-        voteCount: Number(vote.votingPower),
-        voteOrder: vote.voteResult.split(',') as Candidate[],
-      };
-    });
+    const voteRecords: VoteRecord[] = Object.values(votesTerm1A).map(
+      (vote: any) => {
+        return {
+          voteCount: Number(vote.votingPower),
+          voteOrder: vote.voteResult.split(',') as Candidate[],
+        };
+      },
+    );
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 12);
 
@@ -26,6 +29,29 @@ describe('calculateElectionWinners', () => {
       'drumcarl05',
       'dmark',
       'xalexus',
+    ]);
+    expect(tieCount).toBe(0);
+  });
+
+  it('should correctly calculate winners from the second election round', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const voteRecords: VoteRecord[] = Object.values(votesTerm1B).map(
+      (vote: any) => {
+        return {
+          voteCount: Number(vote.votingPower),
+          voteOrder: vote.voteResult.split(',') as Candidate[],
+        };
+      },
+    );
+
+    const { winners, tieCount } = calculateStvWinners(voteRecords, 5);
+
+    expect(winners).toEqual([
+      'jp',
+      'funcracker',
+      'king_bryan',
+      'bodhi_tree',
+      'drumcarl05',
     ]);
     expect(tieCount).toBe(0);
   });
