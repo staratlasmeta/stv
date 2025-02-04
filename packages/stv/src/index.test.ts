@@ -6,9 +6,8 @@ import {
   CandidateMapItem,
   distributeVotes,
   eliminateLowestCandidate,
+  getCandidateMapFromVoteRecords,
   getCandidatesAboveQuota,
-  initializeCandidateSet,
-  organizeVotesByNextCandidate,
   redistributeExcessVotes,
   redistributeToCandidates,
   removeCandidateFromAllVotes,
@@ -319,29 +318,30 @@ describe('calculateQuota', () => {
   });
 });
 
-describe('initializeCandidateSet', () => {
-  it('should initialize a candidate set with correct total votes', () => {
+describe('getCandidateMapFromVoteRecords', () => {
+  it('should create a candidate map with correct total votes', () => {
     const voteRecords: VoteRecord[] = [
       { voteCount: 3, voteOrder: ['A', 'B', 'C'] },
       { voteCount: 5, voteOrder: ['A', 'C', 'B'] },
       { voteCount: 2, voteOrder: ['B', 'A', 'C'] },
     ];
-    const candidateSet = initializeCandidateSet(voteRecords);
-    expect(candidateSet.get('A')?.totalVotes).toBe(8);
-    expect(candidateSet.get('B')?.totalVotes).toBe(2);
+    const candidateMap = getCandidateMapFromVoteRecords(voteRecords);
+    expect(candidateMap.size).toBe(2);
+    expect(candidateMap.get('A')?.totalVotes).toBe(8);
+    expect(candidateMap.get('B')?.totalVotes).toBe(2);
   });
 
-  it('should handle empty vote records', () => {
+  it('should handle empty vote records gracefully', () => {
     const voteRecords: VoteRecord[] = [];
-    const candidateSet = initializeCandidateSet(voteRecords);
-    expect(candidateSet.size).toBe(0);
+    const candidateMap = getCandidateMapFromVoteRecords(voteRecords);
+    expect(candidateMap.size).toBe(0);
   });
 
   it('should handle a single vote record', () => {
     const voteRecords: VoteRecord[] = [{ voteCount: 1, voteOrder: ['A'] }];
-    const candidateSet = initializeCandidateSet(voteRecords);
-    expect(candidateSet.size).toBe(1);
-    expect(candidateSet.get('A')?.totalVotes).toBe(1);
+    const candidateMap = getCandidateMapFromVoteRecords(voteRecords);
+    expect(candidateMap.size).toBe(1);
+    expect(candidateMap.get('A')?.totalVotes).toBe(1);
   });
 
   it('should aggregate votes correctly when there are multiple records for the same candidate', () => {
@@ -349,8 +349,9 @@ describe('initializeCandidateSet', () => {
       { voteCount: 3, voteOrder: ['A', 'B'] },
       { voteCount: 4, voteOrder: ['A', 'C'] },
     ];
-    const candidateSet = initializeCandidateSet(voteRecords);
-    expect(candidateSet.get('A')?.totalVotes).toBe(7);
+    const candidateMap = getCandidateMapFromVoteRecords(voteRecords);
+    expect(candidateMap.size).toBe(1);
+    expect(candidateMap.get('A')?.totalVotes).toBe(7);
   });
 
   it('should ignore records with empty vote orders', () => {
@@ -358,9 +359,30 @@ describe('initializeCandidateSet', () => {
       { voteCount: 3, voteOrder: [] },
       { voteCount: 4, voteOrder: ['A', 'C'] },
     ];
-    const candidateSet = initializeCandidateSet(voteRecords);
-    expect(candidateSet.size).toBe(1);
-    expect(candidateSet.get('A')?.totalVotes).toBe(4);
+    const candidateMap = getCandidateMapFromVoteRecords(voteRecords);
+    expect(candidateMap.size).toBe(1);
+    expect(candidateMap.get('A')?.totalVotes).toBe(4);
+  });
+
+  it('should handle the case where votes have different next candidates', () => {
+    const votes: VoteRecord[] = [
+      { voteCount: 10, voteOrder: ['B', 'C'] },
+      { voteCount: 20, voteOrder: ['C', 'A'] },
+    ];
+    const candidateMap = getCandidateMapFromVoteRecords(votes);
+    expect(candidateMap.size).toBe(2);
+    expect(candidateMap.get('B')?.totalVotes).toBe(10);
+    expect(candidateMap.get('C')?.totalVotes).toBe(20);
+  });
+
+  it('should handle votes with only one candidate', () => {
+    const votes: VoteRecord[] = [
+      { voteCount: 10, voteOrder: ['B'] },
+      { voteCount: 20, voteOrder: ['B'] },
+    ];
+    const candidateMap = getCandidateMapFromVoteRecords(votes);
+    expect(candidateMap.size).toBe(1);
+    expect(candidateMap.get('B')?.totalVotes).toBe(30);
   });
 });
 
@@ -598,11 +620,11 @@ describe('distributeVotes', () => {
       ],
     ]);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    distributeVotes('A', candidateSet.get('A')!, candidateSet, 25, {
+    distributeVotes('A', candidateSet.get('A')!, candidateSet, 5, {
       value: 60,
     });
     expect(candidateSet.has('A')).toBe(false);
-    expect(candidateSet.get('B')?.totalVotes).toBeGreaterThan(20); // B should receive additional votes
+    expect(candidateSet.get('B')?.totalVotes).toBe(25); // B should receive additional votes
   });
 
   it('should handle the case where no excess votes are present', () => {
@@ -623,7 +645,7 @@ describe('distributeVotes', () => {
       ],
     ]);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    distributeVotes('A', candidateSet.get('A')!, candidateSet, 25, {
+    distributeVotes('A', candidateSet.get('A')!, candidateSet, 0, {
       value: 45,
     });
     expect(candidateSet.has('A')).toBe(false);
@@ -642,7 +664,7 @@ describe('distributeVotes', () => {
       ],
     ]);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    distributeVotes('A', candidateSet.get('A')!, candidateSet, 25, {
+    distributeVotes('A', candidateSet.get('A')!, candidateSet, 0, {
       value: 20,
     });
     expect(candidateSet.has('A')).toBe(false);
@@ -654,7 +676,7 @@ describe('distributeVotes', () => {
       ['A', { totalVotes: 30, votes: [{ voteCount: 30, voteOrder: ['A'] }] }],
     ]);
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    distributeVotes('A', candidateSet.get('A')!, candidateSet, 25, {
+    distributeVotes('A', candidateSet.get('A')!, candidateSet, 5, {
       value: 30,
     });
     expect(candidateSet.has('A')).toBe(false);
@@ -739,11 +761,12 @@ describe('redistributeExcessVotes', () => {
       ['B', { totalVotes: 10, votes: [{ voteCount: 10, voteOrder: ['B'] }] }],
       ['C', { totalVotes: 0, votes: [] }],
     ]);
+
     const candidateData = {
       totalVotes: 30,
       votes: [{ voteCount: 30, voteOrder: ['B', 'C'] }],
     };
-    redistributeExcessVotes(candidateData, candidateSet, 25, { value: 60 });
+    redistributeExcessVotes(candidateData, candidateSet, 5, { value: 60 });
     expect(candidateSet.get('B')?.totalVotes).toBe(10 + (30 - 25));
   });
 
@@ -756,7 +779,7 @@ describe('redistributeExcessVotes', () => {
       totalVotes: 30,
       votes: [{ voteCount: 30, voteOrder: ['A'] }],
     };
-    redistributeExcessVotes(candidateData, candidateSet, 25, { value: 60 });
+    redistributeExcessVotes(candidateData, candidateSet, 5, { value: 60 });
     expect(candidateSet.get('B')?.totalVotes).toBe(10);
   });
 
@@ -768,7 +791,7 @@ describe('redistributeExcessVotes', () => {
       totalVotes: 25,
       votes: [{ voteCount: 25, voteOrder: ['A', 'B'] }],
     };
-    redistributeExcessVotes(candidateData, candidateSet, 25, { value: 50 });
+    redistributeExcessVotes(candidateData, candidateSet, 0, { value: 50 });
     expect(candidateSet.get('B')?.totalVotes).toBe(10);
   });
 
@@ -779,72 +802,8 @@ describe('redistributeExcessVotes', () => {
       totalVotes: 30,
       votes: [{ voteCount: 30, voteOrder: [] }],
     };
-    redistributeExcessVotes(
-      candidateData,
-      candidateSet,
-      25,
-      newQuotaTotalVotes,
-    );
+    redistributeExcessVotes(candidateData, candidateSet, 5, newQuotaTotalVotes);
     expect(newQuotaTotalVotes.value).toBeLessThan(100);
-  });
-});
-
-describe('organizeVotesByNextCandidate', () => {
-  it('should organize votes by the next candidate in the preference list', () => {
-    const votes: VoteRecord[] = [
-      { voteCount: 10, voteOrder: ['B', 'C'] },
-      { voteCount: 20, voteOrder: ['B', 'A'] },
-    ];
-    const organizedVotes = organizeVotesByNextCandidate(votes);
-    expect(organizedVotes.size).toBe(1);
-    expect(organizedVotes.get('B')?.totalVotes).toBe(30);
-  });
-
-  it('should handle the case where votes have different next candidates', () => {
-    const votes: VoteRecord[] = [
-      { voteCount: 10, voteOrder: ['B', 'C'] },
-      { voteCount: 20, voteOrder: ['C', 'A'] },
-    ];
-    const organizedVotes = organizeVotesByNextCandidate(votes);
-    expect(organizedVotes.size).toBe(2);
-    expect(organizedVotes.get('B')?.totalVotes).toBe(10);
-    expect(organizedVotes.get('C')?.totalVotes).toBe(20);
-  });
-
-  it('should ignore votes that have no next candidate', () => {
-    const votes: VoteRecord[] = [
-      { voteCount: 10, voteOrder: [] },
-      { voteCount: 20, voteOrder: ['C', 'A'] },
-    ];
-    const organizedVotes = organizeVotesByNextCandidate(votes);
-    expect(organizedVotes.size).toBe(1);
-    expect(organizedVotes.get('C')?.totalVotes).toBe(20);
-  });
-
-  it('should aggregate votes for the same next candidate', () => {
-    const votes: VoteRecord[] = [
-      { voteCount: 10, voteOrder: ['B', 'C'] },
-      { voteCount: 5, voteOrder: ['B', 'A'] },
-    ];
-    const organizedVotes = organizeVotesByNextCandidate(votes);
-    expect(organizedVotes.size).toBe(1);
-    expect(organizedVotes.get('B')?.totalVotes).toBe(15);
-  });
-
-  it('should handle votes with only one candidate', () => {
-    const votes: VoteRecord[] = [
-      { voteCount: 10, voteOrder: ['B'] },
-      { voteCount: 20, voteOrder: ['B'] },
-    ];
-    const organizedVotes = organizeVotesByNextCandidate(votes);
-    expect(organizedVotes.size).toBe(1);
-    expect(organizedVotes.get('B')?.totalVotes).toBe(30);
-  });
-
-  it('should handle empty vote records gracefully', () => {
-    const votes: VoteRecord[] = [];
-    const organizedVotes = organizeVotesByNextCandidate(votes);
-    expect(organizedVotes.size).toBe(0);
   });
 });
 
@@ -864,6 +823,7 @@ describe('redistributeToCandidates', () => {
         { totalVotes: 20, votes: [{ voteCount: 20, voteOrder: ['C', 'A'] }] },
       ],
     ]);
+
     redistributeToCandidates(organizedVotes, candidateSet, 1 / 3);
     expect(candidateSet.get('B')?.totalVotes).toBeCloseTo(13.33, 2); // B should receive approximately 3.33 additional votes
     expect(candidateSet.get('C')?.totalVotes).toBeCloseTo(26.67, 2); // C should receive approximately 6.67 additional votes
@@ -879,6 +839,7 @@ describe('redistributeToCandidates', () => {
         { totalVotes: 20, votes: [{ voteCount: 20, voteOrder: ['C', 'A'] }] },
       ],
     ]);
+
     redistributeToCandidates(organizedVotes, candidateSet, 1 / 3);
     expect(candidateSet.has('C')).toBe(true);
     expect(candidateSet.get('C')?.totalVotes).toBeCloseTo(6.67, 2); // C should receive approximately 6.67 additional votes
@@ -894,6 +855,7 @@ describe('redistributeToCandidates', () => {
         { totalVotes: 10, votes: [{ voteCount: 10, voteOrder: ['B', 'C'] }] },
       ],
     ]);
+
     redistributeToCandidates(organizedVotes, candidateSet, 0.5);
     expect(candidateSet.get('B')?.totalVotes).toBe(15); // B should receive 5 additional votes
   });
