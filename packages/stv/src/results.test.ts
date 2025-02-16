@@ -16,6 +16,27 @@ describe('calculate 1st Council election winners', () => {
 
     const { winners, tieCount } = calculateStvWinners(voteRecords, 12);
 
+    /*
+      Before PR #4, the expected (and actual) winners were:
+
+      expect(winners).toEqual([
+        'king_bryan',
+        'funcracker',
+        'krigs',
+        'bodhi_tree',
+        'rome_i_emperor',
+        'ajota_lrnr',
+        'notcatz',
+        'jp',
+        'jith_blade',
+        'drumcarl05',
+        'dmark',
+        'xalexus',
+      ]);
+
+      This test was later updated to reflect the changes made in https://github.com/staratlasmeta/stv/pull/4.
+      As such, the following list with expected winners is no longer in sync with reality.
+    */
     expect(winners).toEqual([
       'king_bryan',
       'funcracker',
@@ -25,10 +46,10 @@ describe('calculate 1st Council election winners', () => {
       'ajota_lrnr',
       'notcatz',
       'jp',
-      'jith_blade',
       'drumcarl05',
+      'jith_blade',
+      'sai_kirito',
       'dmark',
-      'xalexus',
     ]);
     expect(tieCount).toBe(0);
   });
