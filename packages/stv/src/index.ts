@@ -225,7 +225,7 @@ export function removeCandidateFromAllVotes(
 export function redistributeExcessVotes(
   candidateData: CandidateMapItem,
   candidateSet: Map<Candidate, CandidateMapItem>,
-  votesToRedistribute: number,
+  excessVotes: number,
   newQuotaTotalVotes: { value: number },
 ): void {
   // Organize votes by the next candidate in line
@@ -234,37 +234,36 @@ export function redistributeExcessVotes(
   );
 
   // Calculate total votes for proportion by summing the vote counts
-  let totalVotesForProportion = 0;
+  let totalAssignedBackupVotes = 0;
   for (const { totalVotes } of nextInLineCandidates.values()) {
-    totalVotesForProportion += totalVotes;
+    totalAssignedBackupVotes += totalVotes;
   }
 
-  if (totalVotesForProportion === 0) {
+  const unassignedVotes = candidateData.totalVotes - totalAssignedBackupVotes;
+  if (unassignedVotes > 0) {
     // console.log(
-    //   `No votes to redistribute, reducing quota by ${candidateData.totalVotes} votes`,
+    //   `Reducing quota by ${candidateData.totalVotes - totalAssignedBackupVotes} votes to account for missing backup candidates`,
     // );
-    newQuotaTotalVotes.value -= candidateData.totalVotes;
-    return;
+    newQuotaTotalVotes.value -= unassignedVotes;
   }
+
+  if (excessVotes === 0 || totalAssignedBackupVotes === 0) {
+    return; // No excess votes to redistribute, or no backup votes assigned
+  }
+
+  // Calculate the vote multiplier based on the excess votes
+  const voteMultiplier = excessVotes / candidateData.totalVotes;
 
   // Redistribute the votes proportionally
-  redistributeToCandidates(
-    nextInLineCandidates,
-    candidateSet,
-    votesToRedistribute,
-    totalVotesForProportion,
-  );
+  redistributeToCandidates(nextInLineCandidates, candidateSet, voteMultiplier);
 }
 
 // Redistribute votes to the remaining candidates
 export function redistributeToCandidates(
   nextCandidates: Map<Candidate, CandidateMapItem>,
   candidateSet: Map<Candidate, CandidateMapItem>,
-  votesToRedistribute: number,
-  totalVotesForProportion: number,
+  voteMultiplier: number,
 ): void {
-  const voteMultiplier = votesToRedistribute / totalVotesForProportion;
-
   for (const [nextCandidate, nextCandidateData] of nextCandidates) {
     nextCandidateData.votes.forEach((v) => (v.voteCount *= voteMultiplier));
 
