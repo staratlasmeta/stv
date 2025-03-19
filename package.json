@@ -2,6 +2,7 @@
   "name": "@staratlas/stv",
   "version": "1.0.0",
   "description": "STV vote algorithm code package for the Star Atlas DAO",
+  "main": "dist/dist.cjs.js",
   "scripts": {
     "build": "vite build",
     "watch": "vite build -w --emptyOutDir=false",
@@ -34,6 +35,10 @@
     "vite": "^5.4.1",
     "vite-plugin-dts": "^4.0.3"
   },
+  "files": [
+    "dist",
+    "src"
+  ],
   "exports": {
     ".": {
       "types": "./dist/dist.d.ts",
