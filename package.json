@@ -1,16 +1,15 @@
 {
-  "name": "stv",
-  "version": "0.0.0",
-  "description": "STV vote code repository for the Star Atlas DAO",
+  "name": "@staratlas/stv",
+  "version": "1.0.0",
+  "description": "STV vote algorithm code package for the Star Atlas DAO",
   "scripts": {
-    "build": "pnpm run -r build",
-    "watch": "pnpm build && pnpm run -r --parallel watch",
+    "build": "vite build",
+    "watch": "vite build -w --emptyOutDir=false",
     "pretest": "pnpm build",
     "test": "jest --verbose",
-    "clean": "pnpm run -r --parallel clean && rimraf -g node_modules/*",
-    "dev": "pnpm run -r --parallel dev",
-    "lint": "pnpm run -r --parallel lint",
-    "lint:fix": "pnpm run -r --parallel lint:fix"
+    "clean": "rimraf dist node_modules",
+    "lint": "eslint .",
+    "lint:fix": "eslint --fix ."
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
@@ -35,5 +34,11 @@
     "vite": "^5.4.1",
     "vite-plugin-dts": "^4.0.3"
   },
-  "packageManager": "pnpm@9.5.0+sha512.140036830124618d624a2187b50d04289d5a087f326c9edfc0ccd733d76c4f52c3a313d4fc148794a2a9d81553016004e6742e8cf850670268a7387fc220c903"
+  "exports": {
+    ".": {
+      "types": "./dist/dist.d.ts",
+      "import": "./dist/dist.es.js",
+      "require": "./dist/dist.cjs.js"
+    }
+  }
 }

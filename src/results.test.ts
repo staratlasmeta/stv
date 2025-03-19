@@ -1,5 +1,5 @@
-import votesTerm1A from '../../../results/1b792551-83e1-4998-99a4-6637caa69df8.json';
-import votesTerm1B from '../../../results/91652743-f916-4566-99af-421a557f7c3d.json';
+import votesTerm1A from '../results/1b792551-83e1-4998-99a4-6637caa69df8.json';
+import votesTerm1B from '../results/91652743-f916-4566-99af-421a557f7c3d.json';
 import { calculateStvWinners, Candidate, VoteRecord } from './index';
 
 describe('calculate 1st Council election winners', () => {

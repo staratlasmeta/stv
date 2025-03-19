@@ -20,12 +20,11 @@ jobs:
         name: Install pnpm
         id: pnpm-install
         with:
-          version: 9.5.0
+          version: 10.6.4
           run_install: false
       - run: pnpm install
       - run: pnpm run build
       - uses: cycjimmy/semantic-release-action@v4
-        working-directory: packages/stv
         with:
           extra_plugins: |
             @semantic-release/changelog
