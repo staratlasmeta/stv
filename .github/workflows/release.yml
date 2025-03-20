@@ -19,7 +19,7 @@ jobs:
           always-auth: true
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4
         id: pnpm-install
         with:
           version: 10.6.4
